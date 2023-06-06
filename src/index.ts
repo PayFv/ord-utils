@@ -1,6 +1,8 @@
-import { OrdTransaction, UnspentOutput } from "./OrdTransaction";
+import { Psbt, payments } from "bitcoinjs-lib";
+import { OrdTransaction, InscribeTransaction, UnspentOutput, toXOnly, build_script } from "./OrdTransaction";
 import { OrdUnspendOutput, UTXO_DUST } from "./OrdUnspendOutput";
 import { satoshisToAmount } from "./utils";
+import { LocalWallet } from "./LocalWallet";
 
 export async function createSendBTC({
   utxos,
@@ -75,6 +77,7 @@ export async function createSendBTC({
 
     const networkFee = await tx.calNetworkFee();
     const output = tx.outputs.find((v) => v.address === toAddress);
+    console.log(`output:` , output , networkFee )
     if (output.value < networkFee) {
       throw new Error(
         `Balance not enough. Need ${satoshisToAmount(
@@ -444,8 +447,137 @@ export async function createSendMultiBTC({
 
   const psbt = await tx.createSignedPsbt();
   if (dump) {
+    console.log(`crateSendMultiBTC ===>`)    
     tx.dumpTx(psbt);
   }
 
   return psbt;
+}
+
+export async function createInscribe({
+  utxos,
+  toAddress,
+  wallet,
+  network,
+  changeAddress,
+  feeRate,
+  pubkey,
+  dump,
+  commission,
+  enableRBF = true ,
+  tag = `ord`,
+  content_type,
+  content
+}: {
+  utxos: UnspentOutput[];
+  toAddress: string;
+  wallet: LocalWallet;
+  network: any;
+  changeAddress: string;
+  feeRate?: number;
+  pubkey: string;
+  dump?: boolean;
+  enableRBF?: boolean;
+  commission?: {
+    address: string;
+    amount: number
+  };
+  tag: string,
+  content_type: string,
+  content: Buffer
+}){
+  const ord_value = 546
+
+  // const nonOrdUtxos: UnspentOutput[] = [];
+  // const ordUtxos: UnspentOutput[] = [];
+  // utxos.forEach((v) => {
+  //   if (v.ords.length > 0) {
+  //     ordUtxos.push(v);
+  //   } else {
+  //     nonOrdUtxos.push(v);
+  //   }
+  // });
+
+  const tmp_reveal_tx = new InscribeTransaction( wallet, network , pubkey , feeRate)
+
+  tmp_reveal_tx.setInscription( tag, content_type, content )
+
+  tmp_reveal_tx.addOutput(toAddress, ord_value )
+
+  tmp_reveal_tx.build_reveal_input( utxos[0] )
+  const reveal_tx_network_fee = await tmp_reveal_tx.calNetworkFee()
+  // console.log(`Reveal tx's network fee: ${reveal_tx_network_fee}`)
+
+  const commit_amt = reveal_tx_network_fee + ord_value
+
+  // console.log( utxos )
+  const commit_p2tr = tmp_reveal_tx.getP2TRAddress()
+  const receivers = [{
+    address: commit_p2tr.address,
+    amount: commit_amt
+  }]
+  if( commission ) receivers.push( commission )
+
+  const commit_tx: Psbt = await createSendMultiBTC({
+    utxos,
+    // toAddress: commit_p2tr.address ,
+    // toAmount: commit_amt,
+    receivers,
+    wallet,
+    network,
+    changeAddress,
+    feeRate,
+    pubkey,
+    dump,
+    enableRBF
+  })
+  // console.log( commit_tx )
+  const commit_tx_detail = commit_tx.extractTransaction()
+  const commit_txid = commit_tx_detail.getId()
+
+  tmp_reveal_tx.build_reveal_input({
+    txId: commit_txid,
+    outputIndex: 0,
+    satoshis: commit_amt
+  })
+
+  const reveal_tx: Psbt = await tmp_reveal_tx.createSignedInscribe()
+  // reveal_tx_input_data.index = 0 
+  
+  // tmp_reveal_tx.addRevealInput({
+
+  // })
+  // reveal_tx_input_data.witnessUtxo = {
+  //   value: commit_tx.txOutputs[0].value,
+  //   script: commit_tx.txOutputs[0].script
+  // }
+
+  // const reveal_transaction = new OrdTransaction(wallet, network, pubkey, feeRate)
+  // reveal_transaction.addRevealInput({
+  //   data: reveal_tx_input_data,
+  //   utxo: tmp_utxo
+  // })
+
+  // reveal_transaction.addOutput(toAddress, ord_value )
+
+  // const reveal_tx = await reveal_transaction.createSignedPsbt()
+
+  // if( dump ) {
+  //   console.log(`Commit Tx ===> `)
+  //   tmp_reveal_tx.dumpTx( commit_tx )
+
+  //   console.log(`Reveal Tx ===> `)
+  //   tmp_reveal_tx.dumpTx( reveal_tx )
+  // }
+
+  if( dump ) {
+    console.log(`createInscribe(reveal tx)==> `)
+    tmp_reveal_tx.dumpTx( reveal_tx)
+  }
+
+  return {
+    commit_tx , 
+    reveal_tx
+  }
+
 }

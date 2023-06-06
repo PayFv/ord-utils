@@ -132,10 +132,12 @@ export class LocalWallet {
   address: string;
   pubkey: string;
   network: bitcoin.Network;
+  p2tr_address: String
   constructor(
     wif: string,
     networkType: NetworkType = NetworkType.TESTNET,
-    addressType: AddressType = AddressType.P2WPKH
+    addressType: AddressType = AddressType.P2WPKH,
+    address?: String
   ) {
     const network = toPsbtNetwork(networkType);
     const keyPair = ECPair.fromWIF(wif, network);
@@ -143,6 +145,10 @@ export class LocalWallet {
     this.pubkey = keyPair.publicKey.toString("hex");
     this.address = publicKeyToAddress(this.pubkey, addressType, networkType);
     this.network = network;
+  }
+
+  setP2TRAddress( address: string) {
+    this.p2tr_address = address 
   }
 
   async signPsbt(psbt: bitcoin.Psbt, opts?: SignOptions) {
@@ -167,7 +173,7 @@ export class LocalWallet {
       const isSigned = v.finalScriptSig || v.finalScriptWitness;
       if (script && !isSigned) {
         const address = bitcoin.address.fromOutputScript(script, psbtNetwork);
-        if (this.address === address) {
+        if ( this.address === address) {
           toSignInputs.push({
             index,
             publicKey: this.pubkey,
@@ -181,14 +187,17 @@ export class LocalWallet {
     if (_inputs.length == 0) {
       throw new Error("no input to sign");
     }
+
     _inputs.forEach((input) => {
       const keyPair = this.keyPair;
-      if (isTaprootInput(psbt.data.inputs[input.index])) {
+      // console.log("sign:", input.index, psbt.data.inputs[input.index] )
+      // console.log( isTaprootInput(psbt.data.inputs[input.index]) )
+      if ( isTaprootInput(psbt.data.inputs[input.index])) {
         const signer = tweakSigner(keyPair, opts);
         psbt.signInput(input.index, signer, input.sighashTypes);
       } else {
         const signer = keyPair;
-        psbt.signInput(input.index, signer, input.sighashTypes);
+        psbt.signInput(input.index , signer, input.sighashTypes);
       }
       if (_opts.autoFinalized !== false) {
         psbt.validateSignaturesOfInput(input.index, validator);
