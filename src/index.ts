@@ -1,8 +1,15 @@
 import { Psbt, payments } from "bitcoinjs-lib";
-import { OrdTransaction, InscribeTransaction, UnspentOutput, toXOnly, build_script } from "./OrdTransaction";
+import { OrdTransaction, InscribeTransaction, UnspentOutput, AddressType } from "./OrdTransaction";
 import { OrdUnspendOutput, UTXO_DUST } from "./OrdUnspendOutput";
 import { satoshisToAmount } from "./utils";
-import { LocalWallet } from "./LocalWallet";
+import { LocalWallet, NetworkType, toPsbtNetwork } from "./LocalWallet";
+
+export {
+  LocalWallet,
+  NetworkType,
+  toPsbtNetwork,
+  AddressType
+}
 
 export async function createSendBTC({
   utxos,
@@ -36,7 +43,7 @@ export async function createSendBTC({
   const nonOrdUtxos: UnspentOutput[] = [];
   const ordUtxos: UnspentOutput[] = [];
   utxos.forEach((v) => {
-    if (v.ords.length > 0) {
+    if (v.inscriptions.length > 0) {
       ordUtxos.push(v);
     } else {
       nonOrdUtxos.push(v);
@@ -154,7 +161,7 @@ export async function createSendOrd({
   const nonOrdUtxos: UnspentOutput[] = [];
   const ordUtxos: UnspentOutput[] = [];
   utxos.forEach((v) => {
-    if (v.ords.length > 0) {
+    if (v.inscriptions.length > 0) {
       ordUtxos.push(v);
     } else {
       nonOrdUtxos.push(v);
@@ -166,8 +173,8 @@ export async function createSendOrd({
 
   for (let i = 0; i < ordUtxos.length; i++) {
     const ordUtxo = ordUtxos[i];
-    if (ordUtxo.ords.find((v) => v.id == toOrdId)) {
-      if (ordUtxo.ords.length > 1) {
+    if (ordUtxo.inscriptions.find((v) => v.id == toOrdId)) {
+      if (ordUtxo.inscriptions.length > 1) {
         throw new Error("Multiple inscriptions! Please split them first.");
       }
       tx.addInput(ordUtxo);
@@ -268,7 +275,7 @@ export async function createSendMultiOrds({
   const nonOrdUtxos: UnspentOutput[] = [];
   const ordUtxos: UnspentOutput[] = [];
   utxos.forEach((v) => {
-    if (v.ords.length > 0) {
+    if (v.inscriptions.length > 0) {
       ordUtxos.push(v);
     } else {
       nonOrdUtxos.push(v);
@@ -280,8 +287,8 @@ export async function createSendMultiOrds({
 
   for (let i = 0; i < ordUtxos.length; i++) {
     const ordUtxo = ordUtxos[i];
-    if (ordUtxo.ords.find((v) => toOrdIds.includes(v.id))) {
-      if (ordUtxo.ords.length > 1) {
+    if (ordUtxo.inscriptions.find((v) => toOrdIds.includes(v.id))) {
+      if (ordUtxo.inscriptions.length > 1) {
         throw new Error(
           "Multiple inscriptions in one UTXO! Please split them first."
         );
@@ -384,7 +391,7 @@ export async function createSendMultiBTC({
   const nonOrdUtxos: UnspentOutput[] = [];
   const ordUtxos: UnspentOutput[] = [];
   utxos.forEach((v) => {
-    if (v.ords.length > 0) {
+    if (v.inscriptions.length > 0) {
       ordUtxos.push(v);
     } else {
       nonOrdUtxos.push(v);
@@ -464,7 +471,7 @@ export async function createInscribe({
   pubkey,
   dump,
   commission,
-  enableRBF = true ,
+  enableRBF = false ,
   tag = `ord`,
   content_type,
   content
@@ -491,7 +498,7 @@ export async function createInscribe({
   // const nonOrdUtxos: UnspentOutput[] = [];
   // const ordUtxos: UnspentOutput[] = [];
   // utxos.forEach((v) => {
-  //   if (v.ords.length > 0) {
+  //   if (v.inscriptions.length > 0) {
   //     ordUtxos.push(v);
   //   } else {
   //     nonOrdUtxos.push(v);
@@ -529,7 +536,7 @@ export async function createInscribe({
     feeRate,
     pubkey,
     dump,
-    enableRBF
+    enableRBF: false
   })
   // console.log( commit_tx )
   const commit_tx_detail = commit_tx.extractTransaction()

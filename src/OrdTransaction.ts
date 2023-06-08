@@ -47,7 +47,7 @@ export interface UnspentOutput {
   scriptPk: string;
   addressType: AddressType;
   address: string;
-  ords: {
+  inscriptions: {
     id: string;
     offset: number;
   }[];
@@ -573,6 +573,10 @@ ${this.inputs
           return str;
         })
         .join("")}
+=> 0 ${this.reveal_input.data.witnessUtxo.value} Sats 
+        lock-size: ${this.reveal_input.data.witnessUtxo.script.length} 
+        via ${this.reveal_input.data.hash} [${this.reveal_input.data.index}]
+        
 total: ${this.getTotalInput()} Sats
 ----------------------------------------------------------------------------------------------
 Outputs
@@ -583,8 +587,6 @@ ${this.outputs
           return str;
         })
         .join("")}
-
-total: ${this.getTotalOutput() - feePaid} Sats
 =============================================================================================
     `);
   }

@@ -12,7 +12,7 @@ import { createSendBTC } from "../src";
 
 interface TestUtxoData {
   satoshis: number;
-  ords?: { id: string; offset: number }[];
+  inscriptions?: { id: string; offset: number }[];
 }
 async function dummySendBTC({
   testUtxoDatas,
@@ -50,7 +50,7 @@ async function dummySendBTC({
       scriptPk,
       addressType,
       address: wallet.address,
-      ords: v.ords || [],
+      inscriptions: v.inscriptions || [],
     };
   });
   const params = {

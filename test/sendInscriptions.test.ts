@@ -10,7 +10,7 @@ import { createSendBTC, createSendMultiOrds } from "../src";
 
 interface TestUtxoData {
   satoshis: number;
-  ords?: { id: string; offset: number }[];
+  inscriptions?: { id: string; offset: number }[];
 }
 
 async function dummySendInscription({
@@ -47,7 +47,7 @@ async function dummySendInscription({
       scriptPk,
       addressType,
       address: wallet.address,
-      ords: v.ords || [],
+      inscriptions: v.inscriptions || [],
     };
   });
   const params = {
@@ -80,7 +80,7 @@ describe("sendInscriptions", () => {
       const { txid } = await dummySendInscription({
         toAddress: BOB_ADDRESS,
         testUtxoDatas: [
-          { satoshis: 10000, ords: [{ id: "001", offset: 1000 }] },
+          { satoshis: 10000, inscriptions: [{ id: "001", offset: 1000 }] },
           { satoshis: 1000 },
         ],
         toOrdIds: ["001"],
@@ -95,8 +95,8 @@ describe("sendInscriptions", () => {
       const { txid } = await dummySendInscription({
         toAddress: BOB_ADDRESS,
         testUtxoDatas: [
-          { satoshis: 10000, ords: [{ id: "001", offset: 1000 }] },
-          { satoshis: 10000, ords: [{ id: "002", offset: 1000 }] },
+          { satoshis: 10000, inscriptions: [{ id: "001", offset: 1000 }] },
+          { satoshis: 10000, inscriptions: [{ id: "002", offset: 1000 }] },
           { satoshis: 1000 },
         ],
         toOrdIds: ["001", "002"],
@@ -114,7 +114,7 @@ describe("sendInscriptions", () => {
           testUtxoDatas: [
             {
               satoshis: 10000,
-              ords: [
+              inscriptions: [
                 { id: "001", offset: 1000 },
                 { id: "002", offset: 2000 },
               ],
@@ -137,8 +137,8 @@ describe("sendInscriptions", () => {
       const { txid } = await dummySendInscription({
         toAddress: BOB_ADDRESS,
         testUtxoDatas: [
-          { satoshis: 1000, ords: [{ id: "001", offset: 0 }] },
-          { satoshis: 1000, ords: [{ id: "002", offset: 0 }] },
+          { satoshis: 1000, inscriptions: [{ id: "001", offset: 0 }] },
+          { satoshis: 1000, inscriptions: [{ id: "002", offset: 0 }] },
           { satoshis: 1000 },
           { satoshis: 1000 },
         ],

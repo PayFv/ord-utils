@@ -10,7 +10,7 @@ import { createSendBTC, createSendMultiOrds, createSendOrd } from "../src";
 
 interface TestUtxoData {
   satoshis: number;
-  ords?: { id: string; offset: number }[];
+  inscriptions?: { id: string; offset: number }[];
 }
 
 async function dummySendInscription({
@@ -49,7 +49,7 @@ async function dummySendInscription({
       scriptPk,
       addressType,
       address: wallet.address,
-      ords: v.ords || [],
+      inscriptions: v.inscriptions || [],
     };
   });
   const params = {
@@ -83,7 +83,7 @@ describe("sendInscription", () => {
       const { txid } = await dummySendInscription({
         toAddress: BOB_ADDRESS,
         testUtxoDatas: [
-          { satoshis: 10000, ords: [{ id: "001", offset: 1000 }] },
+          { satoshis: 10000, inscriptions: [{ id: "001", offset: 1000 }] },
           { satoshis: 1000 },
         ],
         toOrdId: "001",
@@ -99,7 +99,7 @@ describe("sendInscription", () => {
       const { txid } = await dummySendInscription({
         toAddress: BOB_ADDRESS,
         testUtxoDatas: [
-          { satoshis: 1000, ords: [{ id: "001", offset: 0 }] },
+          { satoshis: 1000, inscriptions: [{ id: "001", offset: 0 }] },
           { satoshis: 10000 },
         ],
         toOrdId: "001",
@@ -117,7 +117,7 @@ describe("sendInscription", () => {
       const { txid } = await dummySendInscription({
         toAddress: BOB_ADDRESS,
         testUtxoDatas: [
-          { satoshis: 10000, ords: [{ id: "001", offset: 1000 }] },
+          { satoshis: 10000, inscriptions: [{ id: "001", offset: 1000 }] },
           { satoshis: 1000 },
           { satoshis: 1000 },
           { satoshis: 1000 },

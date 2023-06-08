@@ -1,25 +1,25 @@
 
 export class OrdUnit {
   satoshis: number;
-  ords: {
+  inscriptions: {
     id: string;
     outputOffset: number;
     unitOffset: number;
   }[];
   constructor(
     satoshis: number,
-    ords: {
+    inscriptions: {
       id: string;
       outputOffset: number;
       unitOffset: number;
     }[]
   ) {
     this.satoshis = satoshis;
-    this.ords = ords;
+    this.inscriptions = inscriptions;
   }
 
   hasOrd() {
-    return this.ords.length > 0;
+    return this.inscriptions.length > 0;
   }
 
 }

@@ -18,7 +18,7 @@ const wallet = new LocalWallet(
 )
 const network = toPsbtNetwork(networkType);
 const testUtxoDatas = [
-    { satoshis: 200000, ords: [{ id: "001", offset: 1000 }] },
+    { satoshis: 200000, inscriptions: [{ id: "001", offset: 1000 }] },
     { satoshis: 6000 },
 ]
 
@@ -35,7 +35,7 @@ const utxos = testUtxoDatas.map((v, index) => {
       scriptPk,
       addressType,
       address: wallet.address,
-      ords: v.ords || [],
+      inscriptions: v.inscriptions || [],
     };
   })
 

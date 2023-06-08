@@ -8,15 +8,15 @@ export class OrdUnspendOutput {
   utxo: UnspentOutput;
   constructor(utxo: UnspentOutput) {
     this.utxo = utxo;
-    this.split(utxo.satoshis, utxo.ords);
+    this.split(utxo.satoshis, utxo.inscriptions);
   }
 
-  private split(satoshis: number, ords: { id: string; offset: number }[]) {
+  private split(satoshis: number, inscriptions: { id: string; offset: number }[]) {
     const ordUnits: OrdUnit[] = [];
     let leftAmount = satoshis;
-    for (let i = 0; i < ords.length; i++) {
-      const id = ords[i].id;
-      const offset = ords[i].offset;
+    for (let i = 0; i < inscriptions.length; i++) {
+      const id = inscriptions[i].id;
+      const offset = inscriptions[i].offset;
 
       let splitAmount = offset - (satoshis - leftAmount);
       const a = leftAmount - splitAmount;
@@ -38,7 +38,7 @@ export class OrdUnspendOutput {
           leftAmount = 0;
         } else {
           // sequnce?
-          ordUnits[ordUnits.length - 1].ords.push({
+          ordUnits[ordUnits.length - 1].inscriptions.push({
             id,
             outputOffset: offset,
             unitOffset: ordUnits[ordUnits.length - 1].satoshis,
@@ -88,7 +88,7 @@ export class OrdUnspendOutput {
    */
   getNonOrdSatoshis() {
     return this.ordUnits
-      .filter((v) => v.ords.length == 0)
+      .filter((v) => v.inscriptions.length == 0)
       .reduce((pre, cur) => pre + cur.satoshis, 0);
   }
 
@@ -99,19 +99,19 @@ export class OrdUnspendOutput {
    */
   getLastUnitSatoshis() {
     const last = this.ordUnits[this.ordUnits.length - 1];
-    if (last.ords.length == 0) {
+    if (last.inscriptions.length == 0) {
       return last.satoshis;
     }
     return 0;
   }
 
   hasOrd() {
-    return this.utxo.ords.length > 0;
+    return this.utxo.inscriptions.length > 0;
   }
 
   dump() {
     this.ordUnits.forEach((v) => {
-      console.log("satoshis:", v.satoshis, "ords:", v.ords);
+      console.log("satoshis:", v.satoshis, "inscriptions:", v.inscriptions);
     });
   }
 }
