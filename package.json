@@ -1,7 +1,7 @@
 {
-  "name": "@five/ord-utils",
+  "name": "thords-ord-utils",
   "version": "0.2.9",
-  "description": "Ordinals Utils",
+  "description": "Fork from Ordinals Utils",
   "keywords": [
     "bitcoin",
     "keyring"
