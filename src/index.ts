@@ -2,12 +2,13 @@ import { Psbt, payments } from "bitcoinjs-lib";
 import { OrdTransaction, InscribeTransaction, UnspentOutput, AddressType } from "./OrdTransaction";
 import { OrdUnspendOutput, UTXO_DUST } from "./OrdUnspendOutput";
 import { satoshisToAmount } from "./utils";
-import { LocalWallet, NetworkType, toPsbtNetwork } from "./LocalWallet";
+import { LocalWallet, NetworkType, toPsbtNetwork, randomWIF } from "./LocalWallet";
 
 export {
   LocalWallet,
   NetworkType,
   toPsbtNetwork,
+  randomWIF,
   AddressType
 }
 
@@ -84,7 +85,6 @@ export async function createSendBTC({
 
     const networkFee = await tx.calNetworkFee();
     const output = tx.outputs.find((v) => v.address === toAddress);
-    console.log(`output:` , output , networkFee )
     if (output.value < networkFee) {
       throw new Error(
         `Balance not enough. Need ${satoshisToAmount(
@@ -454,11 +454,74 @@ export async function createSendMultiBTC({
 
   const psbt = await tx.createSignedPsbt();
   if (dump) {
-    console.log(`crateSendMultiBTC ===>`)    
+    console.log(`crateSendMultiBTC ===>`)
     tx.dumpTx(psbt);
   }
 
   return psbt;
+}
+
+export async function createInscriptionRevealTx({
+  commit_tx,
+  toAddress,
+  wallet,
+  network,
+  feeRate,
+  pubkey,
+  dump,
+  tag = `ord`,
+  content_type,
+  content,
+  cal_network_fee = true,
+}: {
+  commit_tx: any;
+  toAddress: string;
+  wallet: LocalWallet;
+  network: any;
+  feeRate?: number;
+  pubkey: string;
+  dump?: boolean;
+  enableRBF?: boolean;
+  commission?: {
+    address: string;
+    amount: number
+  };
+  tag: string,
+  content_type: string,
+  content: Buffer,
+  cal_network_fee?: boolean
+}) {
+  const ord_value = 546
+
+  const tmp_reveal_tx = new InscribeTransaction(wallet, network, pubkey, feeRate)
+
+  tmp_reveal_tx.setInscription(tag, content_type, content)
+
+  tmp_reveal_tx.build_reveal_input( commit_tx )
+
+  tmp_reveal_tx.addOutput(toAddress, ord_value)
+ 
+  const reveal_tx: Psbt = await tmp_reveal_tx.createSignedInscribe() 
+
+  if (dump) {
+    console.log(`createInscribe(reveal tx)==> `)
+    tmp_reveal_tx.dumpTx(reveal_tx)
+  }
+
+  let network_fee = 0 
+  if( cal_network_fee ) {
+    network_fee = await tmp_reveal_tx.calNetworkFee()
+  }
+
+  const commit_p2tr =  tmp_reveal_tx.getP2TRAddress()
+
+  return {
+    reveal_tx, 
+    ord_value,
+    network_fee,
+    commit_p2tr,
+  }
+
 }
 
 export async function createInscribe({
@@ -471,7 +534,7 @@ export async function createInscribe({
   pubkey,
   dump,
   commission,
-  enableRBF = false ,
+  enableRBF = false,
   tag = `ord`,
   content_type,
   content
@@ -492,38 +555,28 @@ export async function createInscribe({
   tag: string,
   content_type: string,
   content: Buffer
-}){
-  const ord_value = 546
+}) {
 
-  // const nonOrdUtxos: UnspentOutput[] = [];
-  // const ordUtxos: UnspentOutput[] = [];
-  // utxos.forEach((v) => {
-  //   if (v.inscriptions.length > 0) {
-  //     ordUtxos.push(v);
-  //   } else {
-  //     nonOrdUtxos.push(v);
-  //   }
-  // });
+  const { network_fee, ord_value, commit_p2tr } = await createInscriptionRevealTx({
+    commit_tx: utxos[0],
+    toAddress,
+    wallet,
+    network,
+    feeRate,
+    pubkey,
+    dump,
+    tag,
+    content_type,
+    content
+  })
 
-  const tmp_reveal_tx = new InscribeTransaction( wallet, network , pubkey , feeRate)
+  const commit_amt = network_fee + ord_value
 
-  tmp_reveal_tx.setInscription( tag, content_type, content )
-
-  tmp_reveal_tx.addOutput(toAddress, ord_value )
-
-  tmp_reveal_tx.build_reveal_input( utxos[0] )
-  const reveal_tx_network_fee = await tmp_reveal_tx.calNetworkFee()
-  // console.log(`Reveal tx's network fee: ${reveal_tx_network_fee}`)
-
-  const commit_amt = reveal_tx_network_fee + ord_value
-
-  // console.log( utxos )
-  const commit_p2tr = tmp_reveal_tx.getP2TRAddress()
   const receivers = [{
     address: commit_p2tr.address,
     amount: commit_amt
   }]
-  if( commission ) receivers.push( commission )
+  if (commission) receivers.push(commission)
 
   const commit_tx: Psbt = await createSendMultiBTC({
     utxos,
@@ -542,48 +595,27 @@ export async function createInscribe({
   const commit_tx_detail = commit_tx.extractTransaction()
   const commit_txid = commit_tx_detail.getId()
 
-  tmp_reveal_tx.build_reveal_input({
+  const commit_utxo = {
     txId: commit_txid,
     outputIndex: 0,
     satoshis: commit_amt
-  })
-
-  const reveal_tx: Psbt = await tmp_reveal_tx.createSignedInscribe()
-  // reveal_tx_input_data.index = 0 
-  
-  // tmp_reveal_tx.addRevealInput({
-
-  // })
-  // reveal_tx_input_data.witnessUtxo = {
-  //   value: commit_tx.txOutputs[0].value,
-  //   script: commit_tx.txOutputs[0].script
-  // }
-
-  // const reveal_transaction = new OrdTransaction(wallet, network, pubkey, feeRate)
-  // reveal_transaction.addRevealInput({
-  //   data: reveal_tx_input_data,
-  //   utxo: tmp_utxo
-  // })
-
-  // reveal_transaction.addOutput(toAddress, ord_value )
-
-  // const reveal_tx = await reveal_transaction.createSignedPsbt()
-
-  // if( dump ) {
-  //   console.log(`Commit Tx ===> `)
-  //   tmp_reveal_tx.dumpTx( commit_tx )
-
-  //   console.log(`Reveal Tx ===> `)
-  //   tmp_reveal_tx.dumpTx( reveal_tx )
-  // }
-
-  if( dump ) {
-    console.log(`createInscribe(reveal tx)==> `)
-    tmp_reveal_tx.dumpTx( reveal_tx)
   }
 
+  const { reveal_tx } = await createInscriptionRevealTx({
+    commit_tx: commit_utxo,
+    toAddress,
+    wallet,
+    network,
+    feeRate,
+    pubkey,
+    dump,
+    tag,
+    content_type,
+    content
+  })
+
   return {
-    commit_tx , 
+    commit_tx,
     reveal_tx
   }
 
