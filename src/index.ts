@@ -845,8 +845,6 @@ export async function createUnsignedBuyOffer({
       }
     }
 
-    return psbt
-
   }
 
   // console.log(`Outpus: `, offer.txOutputs )
@@ -865,7 +863,7 @@ export async function createUnsignedBuyOffer({
 
   // })
 
-  return offer
+  return psbt
 
 }
 
