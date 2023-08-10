@@ -698,10 +698,10 @@ export async function createInscriptionOffer({
     value: 0
   })
 
-  offer.addOutput({
-    address: fixed_p2tr.address,
-    value: 0
-  })
+  // offer.addOutput({
+  //   address: fixed_p2tr.address,
+  //   value: 0
+  // })
 
   offer.addOutput({
     address: fixed_p2tr.address,
@@ -724,16 +724,18 @@ export async function createInscriptionOffer({
 export async function createUnsignedBuyOffer({
   order_psbt_hex,
   network,
+  buyer_public_key,
   dummy_utxos,
   utxos,
-  sell_inscription_utxo,
+  inscription_utxo,
   fee_rate,
 }: {
   order_psbt_hex: string;
   network: any;
+  buyer_public_key: string;
   dummy_utxos: UnspentOutput[];
   utxos: UnspentOutput[];
-  sell_inscription_utxo: UnspentOutput;
+  inscription_utxo: UnspentOutput;
   fee_rate: number;
 }) {
   const offer = Psbt.fromHex(order_psbt_hex, {
@@ -745,27 +747,27 @@ export async function createUnsignedBuyOffer({
   // offer.input
   // console.log("Inputs: ", offer.data.inputs)  //1
 
-  const offer_sell_input = offer.data.inputs[1]
+  const offer_sell_input = offer.data.inputs[2]
 
   const buyer = payments.p2tr({
-    internalPubkey: toXOnly(Buffer.from(utxos[0].scriptPk, 'hex')),
+    internalPubkey: toXOnly(Buffer.from(buyer_public_key, 'hex')),
     network
   })
 
   const seller = payments.p2tr({
-    internalPubkey: toXOnly( Buffer.from(sell_inscription_utxo.scriptPk, 'hex') ),
+    internalPubkey: toXOnly( Buffer.from(inscription_utxo.scriptPk, 'hex') ),
     network
   })
 
   const sell_input = {
-    hash: sell_inscription_utxo.txId,
-    index: sell_inscription_utxo.outputIndex,
+    hash: inscription_utxo.txId,
+    index: inscription_utxo.outputIndex,
     witnessUtxo: offer_sell_input.witnessUtxo,
     finalScriptWitness: offer_sell_input.finalScriptWitness,
     tapInternalKey: seller.internalPubkey
     
   }
-  const sell_output = offer.txOutputs[1]
+  const sell_output = offer.txOutputs[2]
 
   const psbt = new Psbt({
     network
@@ -868,18 +870,22 @@ export async function createUnsignedBuyOffer({
 
 export async function createDummyUTXO({
   network,
+  publick_key,
   utxos,
   fee_rate
 }: {
   network: any;
+  publick_key: string;
   utxos: UnspentOutput[];
   fee_rate: number
 }) {
 
+  const scriptPK = utxos[0].scriptPk
+  console.log( scriptPK )
   const dummy_amount = 600
-  const network_fee = 174 * fee_rate
+  const network_fee = 200 * fee_rate
   const p2tr = payments.p2tr({
-    internalPubkey: toXOnly(Buffer.from(utxos[0].scriptPk, 'hex')),
+    internalPubkey: toXOnly(Buffer.from( publick_key , 'hex')),
     network
   })
 
@@ -917,6 +923,7 @@ export async function createDummyUTXO({
         address: p2tr.address,
         value: left
       })
+      need_sats = 0 
     } else {
       need_sats = need_sats - value
     }
