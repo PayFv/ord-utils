@@ -726,14 +726,14 @@ export async function createUnsignedBuyOffer({
   network,
   dummy_utxos,
   utxos,
-  inscription_output,
+  sell_inscription_utxo,
   fee_rate,
 }: {
   order_psbt_hex: string;
   network: any;
   dummy_utxos: UnspentOutput[];
   utxos: UnspentOutput[];
-  inscription_output: string;
+  sell_inscription_utxo: UnspentOutput;
   fee_rate: number;
 }) {
   const offer = Psbt.fromHex(order_psbt_hex, {
@@ -743,9 +743,7 @@ export async function createUnsignedBuyOffer({
   if (dummy_utxos.length !== 2) throw new Error('No enough utxos.')
 
   // offer.input
-  console.log("Inputs: ", offer.data.inputs)  //1
-
-  const inscritpion_output = inscription_output.split(':')
+  // console.log("Inputs: ", offer.data.inputs)  //1
 
   const offer_sell_input = offer.data.inputs[1]
 
@@ -755,14 +753,13 @@ export async function createUnsignedBuyOffer({
   })
 
   const seller = payments.p2tr({
-    internalPubkey: toXOnly( offer_sell_input.witnessUtxo.script ),
+    internalPubkey: toXOnly( Buffer.from(sell_inscription_utxo.scriptPk, 'hex') ),
     network
   })
 
-
   const sell_input = {
-    hash: inscritpion_output[0],
-    index: +inscritpion_output[1],
+    hash: sell_inscription_utxo.txId,
+    index: sell_inscription_utxo.outputIndex,
     witnessUtxo: offer_sell_input.witnessUtxo,
     finalScriptWitness: offer_sell_input.finalScriptWitness,
     tapInternalKey: seller.internalPubkey
@@ -819,6 +816,7 @@ export async function createUnsignedBuyOffer({
   const psbt_size = 600
   let buyer_cost = sell_input.witnessUtxo.value + fee_rate * psbt_size
 
+  // console.log( buyer_cost, utxos )
   while( buyer_cost > 0 ) {
     const utxo = utxos.pop()
     const { satoshis, txId, outputIndex } = utxo 
@@ -843,6 +841,7 @@ export async function createUnsignedBuyOffer({
           value: left 
         })
       }
+      buyer_cost = 0 
     }
 
   }
