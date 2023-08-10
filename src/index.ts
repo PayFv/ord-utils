@@ -2,7 +2,7 @@ import { OrdTransaction, InscribeTransaction, UnspentOutput, AddressType } from 
 import { OrdUnspendOutput, UTXO_DUST } from "./OrdUnspendOutput";
 import { satoshisToAmount } from "./utils";
 import { LocalWallet, NetworkType, toPsbtNetwork, randomWIF, toXOnly } from "./LocalWallet";
-import { Psbt, payments, networks } from "bitcoinjs-lib";
+import { Psbt, payments, networks, Transaction } from "bitcoinjs-lib";
 import { off } from "process";
 
 export {
@@ -498,26 +498,26 @@ export async function createInscriptionRevealTx({
 
   tmp_reveal_tx.setInscription(tag, content_type, content)
 
-  tmp_reveal_tx.build_reveal_input( commit_tx )
+  tmp_reveal_tx.build_reveal_input(commit_tx)
 
   tmp_reveal_tx.addOutput(toAddress, ord_value)
- 
-  const reveal_tx: Psbt = await tmp_reveal_tx.createSignedInscribe() 
+
+  const reveal_tx: Psbt = await tmp_reveal_tx.createSignedInscribe()
 
   if (dump) {
     console.log(`createInscribe(reveal tx)==> `)
     tmp_reveal_tx.dumpTx(reveal_tx)
   }
 
-  let network_fee = 0 
-  if( cal_network_fee ) {
+  let network_fee = 0
+  if (cal_network_fee) {
     network_fee = await tmp_reveal_tx.calNetworkFee()
   }
 
-  const commit_p2tr =  tmp_reveal_tx.getP2TRAddress()
+  const commit_p2tr = tmp_reveal_tx.getP2TRAddress()
 
   return {
-    reveal_tx, 
+    reveal_tx,
     ord_value,
     network_fee,
     commit_p2tr,
@@ -644,18 +644,41 @@ export async function createInscriptionOffer({
   })
 
   let fixed_p2tr = payments.p2tr({
-    internalPubkey: toXOnly( Buffer.from('021bc91251f239f888706817e93e419f1532be84a1fc77166526902a36f6e8c707','hex')),
+    internalPubkey: toXOnly(Buffer.from('021bc91251f239f888706817e93e419f1532be84a1fc77166526902a36f6e8c707', 'hex')),
     network
   })
 
   const rec_p2tr = payments.p2tr({
-    internalPubkey: toXOnly(Buffer.from( rec_public_key, 'hex')),
+    internalPubkey: toXOnly(Buffer.from(rec_public_key, 'hex')),
     network
   })
 
   const inscription_p2tr = payments.p2tr({
-    internalPubkey: toXOnly(Buffer.from( inscription_utxo.scriptPk, 'hex')),
+    internalPubkey: toXOnly(Buffer.from(inscription_utxo.scriptPk, 'hex')),
     network
+  })
+
+  // fixed
+  offer.addInput({
+    hash: '0000000000000000000000000000000000000000000000000000000000000000',
+    index: 1,
+    witnessUtxo: {
+      value: amount,
+      script: fixed_p2tr.output
+    },
+    tapInternalKey: fixed_p2tr.internalPubkey
+  })
+
+
+  // fixed
+  offer.addInput({
+    hash: '0000000000000000000000000000000000000000000000000000000000000001',
+    index: 2,
+    witnessUtxo: {
+      value: amount,
+      script: fixed_p2tr.output
+    },
+    tapInternalKey: fixed_p2tr.internalPubkey
   })
 
   offer.addInput({
@@ -666,18 +689,18 @@ export async function createInscriptionOffer({
       script: inscription_p2tr.output
     },
     tapInternalKey: inscription_p2tr.internalPubkey,
-    sighashType: 0x03 | 0x80,
+    sighashType: Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY,
   })
 
-  // fixed
-  offer.addInput({
-    hash: '48500ece3e1b7b99ec0926f98678c14fd6eca4f6bc07284334c1b9319ef232da', 
-    index: 1,
-    witnessUtxo: {
-        value: amount,
-        script: fixed_p2tr.output
-    },
-    tapInternalKey: fixed_p2tr.internalPubkey
+
+  offer.addOutput({
+    address: fixed_p2tr.address,
+    value: 0
+  })
+
+  offer.addOutput({
+    address: fixed_p2tr.address,
+    value: 0
   })
 
   offer.addOutput({
@@ -690,8 +713,8 @@ export async function createInscriptionOffer({
     value: amount
   })
 
-  if( commission ) {
-    offer.addOutput( commission )
+  if (commission) {
+    offer.addOutput(commission)
   }
 
   return offer
@@ -699,43 +722,134 @@ export async function createInscriptionOffer({
 }
 
 export async function createUnsignedBuyOffer({
-  unsigned_psbt_hex,
+  order_psbt_hex,
   network,
+  dummy_utxos,
   utxos,
-  amount,
-  indexes,
-}:{
-  unsigned_psbt_hex: string;
+  inscription_output,
+  fee_rate,
+}: {
+  order_psbt_hex: string;
   network: any;
+  dummy_utxos: UnspentOutput[];
   utxos: UnspentOutput[];
-  amount: number;
-  indexes: number[];
+  inscription_output: string;
+  fee_rate: number;
 }) {
-  const offer = Psbt.fromHex( unsigned_psbt_hex , {
+  const offer = Psbt.fromHex(order_psbt_hex, {
     network
   })
 
-  let dummy_utxo 
-  let new_utxos = []
-  for( const utxo of utxos ) {
-    if( !dummy_utxo ) {
-      dummy_utxo = utxo
-    } else {
-      if( dummy_utxo.satoshis >= utxo.satoshis ) {
-        new_utxos.push( dummy_utxo )
-        dummy_utxo = utxo 
-      } else {
-        new_utxos.push( utxo )
-      }
-    }
-  }
-
-  const dummy_p2tr = payments.p2tr({
-    internalPubkey: toXOnly( Buffer.from( dummy_utxo.scriptPK ,'hex')),
-    network
-  })
+  if (dummy_utxos.length !== 2) throw new Error('No enough utxos.')
 
   // offer.input
+  console.log("Inputs: ", offer.data.inputs)  //1
+
+  const inscritpion_output = inscription_output.split(':')
+
+  const offer_sell_input = offer.data.inputs[1]
+
+  const buyer = payments.p2tr({
+    internalPubkey: toXOnly(Buffer.from(utxos[0].scriptPk, 'hex')),
+    network
+  })
+
+  const seller = payments.p2tr({
+    internalPubkey: toXOnly( offer_sell_input.witnessUtxo.script ),
+    network
+  })
+
+
+  const sell_input = {
+    hash: inscritpion_output[0],
+    index: +inscritpion_output[1],
+    witnessUtxo: offer_sell_input.witnessUtxo,
+    finalScriptWitness: offer_sell_input.finalScriptWitness,
+    tapInternalKey: seller.internalPubkey
+    
+  }
+  const sell_output = offer.txOutputs[1]
+
+  const psbt = new Psbt({
+    network
+  })
+
+  const dumy1 = dummy_utxos[0]
+  const dumy2 = dummy_utxos[1]
+
+  psbt.addInput({
+    hash: dumy1.txId,
+    index: +dumy1.outputIndex,
+    witnessUtxo: {
+      value: dumy1.satoshis,
+      script: buyer.output
+    },
+    tapInternalKey: buyer.internalPubkey,
+    sighashType: Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY,
+  })
+
+  psbt.addInput({
+    hash: dumy2.txId,
+    index: +dumy2.outputIndex,
+    witnessUtxo: {
+      value: dumy2.satoshis,
+      script: buyer.output
+    },
+    tapInternalKey: buyer.internalPubkey,
+    sighashType: Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY,
+  })
+
+  const dummy_amount = dumy1.satoshis + dumy2.satoshis 
+
+  // add signed inscription utxo
+  psbt.addInput( sell_input )
+
+  psbt.addOutput({
+    address: buyer.address,
+    value: dummy_amount
+  })
+
+  psbt.addOutput({
+    address: buyer.address,
+    value: sell_input.witnessUtxo.value
+  })
+
+  psbt.addOutput( sell_output )
+  
+  const psbt_size = 600
+  let buyer_cost = sell_input.witnessUtxo.value + fee_rate * psbt_size
+
+  while( buyer_cost > 0 ) {
+    const utxo = utxos.pop()
+    const { satoshis, txId, outputIndex } = utxo 
+    psbt.addInput({
+      hash: txId,
+      index: +outputIndex,
+      witnessUtxo: {
+        value: satoshis,
+        script: buyer.output
+      },
+      tapInternalKey: buyer.internalPubkey,
+      sighashType: Transaction.SIGHASH_SINGLE | Transaction.SIGHASH_ANYONECANPAY,
+    })
+
+    if( buyer_cost > satoshis ) {
+      buyer_cost = buyer_cost - satoshis
+    } else {
+      const left = satoshis - buyer_cost
+      if( left > 600 ) {
+        psbt.addOutput({
+          address: buyer.address,
+          value: left 
+        })
+      }
+    }
+
+    return psbt
+
+  }
+
+  // console.log(`Outpus: `, offer.txOutputs )
 
   // offer.updateInput( 0 , {
   //   hash: dummy_utxo.txId,
@@ -751,41 +865,33 @@ export async function createUnsignedBuyOffer({
 
   // })
 
-  return offer 
+  return offer
 
 }
 
 export async function createDummyUTXO({
   network,
-  utxo ,
+  utxos,
   fee_rate
-}:{
+}: {
   network: any;
-  utxo: UnspentOutput;
+  utxos: UnspentOutput[];
   fee_rate: number
 }) {
 
   const dummy_amount = 600
-  const network_fee = 154 * fee_rate
+  const network_fee = 174 * fee_rate
   const p2tr = payments.p2tr({
-    internalPubkey: toXOnly(Buffer.from( utxo.scriptPk, 'hex') ),
+    internalPubkey: toXOnly(Buffer.from(utxos[0].scriptPk, 'hex')),
     network
   })
 
   const dummy_utxo = new Psbt({
     network
   })
-  
-  dummy_utxo.addInput({
-    hash: utxo.txId,
-    index: +utxo.outputIndex,
-    witnessUtxo: {
-      value: utxo.satoshis,
-      script: p2tr.output
-    },
-    tapInternalKey: p2tr.internalPubkey,
-  })
-  
+
+  let need_sats = dummy_amount * 2 + network_fee
+
   dummy_utxo.addOutput({
     address: p2tr.address,
     value: dummy_amount
@@ -793,9 +899,63 @@ export async function createDummyUTXO({
 
   dummy_utxo.addOutput({
     address: p2tr.address,
-    value: utxo.satoshis - dummy_amount - network_fee
+    value: dummy_amount
   })
 
-  return dummy_utxo
+  while (need_sats > 0) {
+    const utxo = utxos.pop()
+    const value = utxo.satoshis
+    dummy_utxo.addInput({
+      hash: utxo.txId,
+      index: +utxo.outputIndex,
+      witnessUtxo: {
+        value: utxo.satoshis,
+        script: p2tr.output
+      },
+      tapInternalKey: p2tr.internalPubkey,
+    })
+    if (value >= need_sats) {
+      const left = value - need_sats
+      dummy_utxo.addOutput({
+        address: p2tr.address,
+        value: left
+      })
+    } else {
+      need_sats = need_sats - value
+    }
+  }
+
+  return {
+    dummy_utxo,
+    utxos
+  }
+
+}
+
+export async function selectDummyUtxo({
+  un_utxos,
+}: {
+  un_utxos: UnspentOutput[];
+}) {
+
+  const dummy_amount = 600 
+  const dummy_utxos = []
+  const utxos = []
+  
+  for(const utxo of un_utxos ) {
+    const { satoshis } = utxo 
+    if( dummy_utxos.length >= 2 ) {
+      utxos.push( utxo )
+    } else {
+      if( satoshis <= dummy_amount ) {
+        dummy_utxos.push( utxo )
+      }
+    }
+  }
+
+  return {
+    dummy_utxos ,
+    utxos
+  }
 
 }
