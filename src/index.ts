@@ -815,7 +815,7 @@ export async function createUnsignedBuyOffer({
 
   psbt.addOutput( sell_output )
   
-  const psbt_size = 600
+  const psbt_size = 450
   let buyer_cost = sell_input.witnessUtxo.value + fee_rate * psbt_size
 
   // console.log( buyer_cost, utxos )
@@ -962,4 +962,46 @@ export async function selectDummyUtxo({
     utxos
   }
 
+}
+
+export function generateDummyUtxosFromSignedPsbt({
+  signed_dummy_utxo,
+  public_key,
+  network
+}: {
+  signed_dummy_utxo: string;
+  public_key: string,
+  network: any;
+}){
+  const dummy_psbt = Psbt.fromHex( signed_dummy_utxo , {
+    network
+  })
+
+  const p2tr = payments.p2tr({
+    internalPubkey: toXOnly(Buffer.from( public_key , 'hex')),
+    network
+  })
+
+  const dummy_amount = 600 
+  const txId = dummy_psbt.extractTransaction().getId()
+  
+  return [
+    {
+        txId,
+        "outputIndex": 0,
+        "satoshis": dummy_amount,
+        "address": "",
+        "scriptPk": p2tr.output,
+        "addressType": 2,
+        "inscriptions": []
+    },
+    {
+        txId,
+        "outputIndex": 1,
+        "satoshis": dummy_amount,
+        "address": "",
+        "scriptPk": p2tr.output,
+        "addressType": 2,
+        "inscriptions": []
+    }]
 }
