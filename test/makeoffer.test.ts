@@ -1,6 +1,6 @@
 
 import { Psbt, networks, payments } from "bitcoinjs-lib";
-import { createInscriptionOffer, createUnsignedBuyOffer, createDummyUTXO, AddressType } from "../src";
+import { createInscriptionOffer, createUnsignedBuyOffer, createDummyUTXO, generateDummyUtxosFromSignedPsbt, AddressType } from "../src";
 
 const buyer_public_key = "0369d1059da3bcf1e321fe381b5ac432f328d951c6dd677938ead941b4c06c90b2"
 const seller_publick_key = '03ac6d5bda18a62e940ee7e2c332da70968945a453329551001d5c8c6fe281669d'
@@ -63,6 +63,16 @@ describe("Make Sell Offer ---->", () => {
 
         console.log(`Dummy psbt hex ----> `)
         console.log(dummy_utxo_psbt.dummy_utxo.toHex())
+
+        const signed_dummy_utxo = `70736274ff0100b402000000016b8420b56db2e0975f568c6a94897d5a0eae5a2ab02e43777352435569045f930100000000ffffffff0358020000000000002251202e3a8862b40e3a0b296c58fab3d16a35d980ce10bfec33539708fb10f37b01f358020000000000002251202e3a8862b40e3a0b296c58fab3d16a35d980ce10bfec33539708fb10f37b01f3f3060300000000002251202e3a8862b40e3a0b296c58fab3d16a35d980ce10bfec33539708fb10f37b01f3000000000001012b6b0c0300000000002251202e3a8862b40e3a0b296c58fab3d16a35d980ce10bfec33539708fb10f37b01f301084201405b17be448da475d327f898b80ff319f9e4724651ab87797c6e8429d9d708e4281d70b35e0a1d4f3bc035b5c79e095961bdf2445ef15e321b702a20b5dfa3005a00000000`
+
+        const dummy_utxos = await generateDummyUtxosFromSignedPsbt({
+            signed_dummy_utxo,
+            public_key: '0369d1059da3bcf1e321fe381b5ac432f328d951c6dd677938ead941b4c06c90b2',   //unisat.getPublicKey
+            network
+        })
+
+        console.log( dummy_utxos )
 
     })
 
